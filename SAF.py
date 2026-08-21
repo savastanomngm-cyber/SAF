@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
 ═══════════════════════════════════════════════════════════════
-  🦅 SKIA ALPHA FUND v3 — Unified AI Pipeline
+🦅 SKIA ALPHA FUND v3 — Unified AI Pipeline  (PATCHED: Geopolitical Analyst)
 ═══════════════════════════════════════════════════════════════
-  Combines: sfa2.py (baskets) + TradingAgents.py (5-stage agents)
-            + AI correlation + auto-add to SAF
-
-  Install:  pip install yfinance pandas rich numpy openai
-  Setup:    export GROQ_API_KEY='gsk_YOUR_KEY_HERE'
-  Run:      python sfa3.py
+Combines: sfa2.py (baskets) + TradingAgents.py (5-stage agents)
+          + AI correlation + auto-add to SAF
+PATCH v2:
+  • Upgraded Analyst Team 4 → 5 agents (added GEOPOLITICAL / Shadow Supply Chain)
+  • New SENT_SYS, NEWS_SYS, GEOPOL_SYS prompts
+  • TRADER_SYS now interprets geopolitical risk-premium scoring correctly
+Install:  pip install yfinance pandas rich numpy openai
+Setup:    export GROQ_API_KEY='gsk_YOUR_KEY_HERE'
+Run:      python sfa3.py
 ═══════════════════════════════════════════════════════════════
 """
-
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -60,7 +62,6 @@ MODEL_DEEP   = os.getenv("TA_DEEP", "openai/gpt-oss-120b")
 MODEL_FAST   = os.getenv("TA_FAST", "openai/gpt-oss-20b")
 MODEL_BACKUP = "qwen/qwen3.6-27b"
 
-
 def llm(system, user, model=None, temperature=0.7, force_json=False):
     """Same LLM function as TradingAgents.py."""
     if not AI_ENABLED or client is None:
@@ -99,7 +100,6 @@ def llm(system, user, model=None, temperature=0.7, force_json=False):
             return ""
     return ""
 
-
 def extract_json(text):
     if not text:
         return None
@@ -114,7 +114,6 @@ def extract_json(text):
         except Exception:
             pass
     return None
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🧺 ALL SAF BASKETS                                       ║
@@ -273,7 +272,6 @@ SECTIONS = {
     ],
 }
 
-
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  💾 PERSISTENCE: Save/Load custom basket additions        ║
 # ╚═══════════════════════════════════════════════════════════╝
@@ -291,7 +289,6 @@ def load_custom_baskets():
         except Exception:
             pass
 
-
 def save_custom_basket(basket_name, holdings):
     """Persist a new/updated basket to disk."""
     custom = {}
@@ -307,7 +304,6 @@ def save_custom_basket(basket_name, holdings):
     with open(SAVINGS_FILE, "w") as f:
         json.dump(custom, f, indent=2)
 
-
 def add_to_saf(ticker, weight, basket_name):
     """Add a ticker to a SAF basket and persist."""
     if basket_name not in BASKETS:
@@ -315,7 +311,6 @@ def add_to_saf(ticker, weight, basket_name):
     BASKETS[basket_name][ticker] = weight
     save_custom_basket(basket_name, {ticker: weight})
     console.print(f"[bold green]✅ {ticker} (weight {weight}) added to '{basket_name}'[/bold green]")
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  📥 DATA FETCHING                                         ║
@@ -358,7 +353,6 @@ def fetch_all_prices():
     console.print(f"[green]✅ Fetched {len(all_data)} tickers.[/green]")
     return pd.DataFrame(all_data)
 
-
 def get_price_df(ticker):
     try:
         df = yf.download(ticker, period="1y", progress=False, auto_adjust=True, threads=False)
@@ -367,7 +361,6 @@ def get_price_df(ticker):
         return df
     except Exception:
         return pd.DataFrame()
-
 
 def compute_indicators(df):
     if df.empty or len(df) < 50:
@@ -404,7 +397,6 @@ def compute_indicators(df):
         "return_20d_%": safe(c.pct_change(20).iloc[-1] * 100),
     }
 
-
 def get_news(ticker, limit=8):
     try:
         raw = yf.Ticker(ticker).news or []
@@ -419,7 +411,6 @@ def get_news(ticker, limit=8):
     except Exception:
         return []
 
-
 def get_fundamentals(ticker):
     try:
         info = yf.Ticker(ticker).info or {}
@@ -429,7 +420,6 @@ def get_fundamentals(ticker):
             "operatingMargins", "returnOnEquity", "revenueGrowth", "debtToEquity",
             "currentRatio", "dividendYield", "targetMeanPrice", "sector", "industry"]
     return {k: info[k] for k in keep if info.get(k) is not None}
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  📊 CALCULATIONS                                          ║
@@ -452,12 +442,10 @@ def period_return(prices, days):
         base = valid.iloc[0]
     return ((prices.iloc[-1] - base) / base) * 100
 
-
 def safe_return(pdf, ticker, days):
     if ticker not in pdf.columns:
         return None
     return period_return(pdf[ticker], days)
-
 
 def basket_return(pdf, holdings, days):
     total_w = sum(holdings.values())
@@ -469,7 +457,6 @@ def basket_return(pdf, holdings, days):
             count += 1
     return w_ret if count > 0 else None
 
-
 def fmt(val):
     if val is None:
         return "[dim]—[/dim]"
@@ -477,32 +464,66 @@ def fmt(val):
     a = "▲" if val >= 0 else "▼"
     return f"[{c}]{a} {val:+.2f}%[/{c}]"
 
-
 def get_unique_tickers():
     s = set()
     for h in BASKETS.values():
         s.update(h.keys())
     return sorted(s)
 
-
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🤖 TRADINGAGENTS PIPELINE (5-Stage Firm Simulation)      ║
 # ║  Adapted from TradingAgents.py for SAF integration        ║
+# ║  PATCHED: 5-analyst team (added Geopolitical)             ║
 # ╚═══════════════════════════════════════════════════════════╝
-
 # Agent prompts
 TECH_SYS = """You are the TECHNICAL ANALYST. Analyze momentum, trend, volatility, support/resistance.
 End with 3-5 bullet 'Key Points Summary'. Cite actual numbers."""
-NEWS_SYS = """You are the NEWS ANALYST. Categorize catalysts (macro, sector, company).
+
+NEWS_SYS = """You are the NEWS ANALYST. 
+When analyzing headlines, cross-reference against these supply-chain signals:
+- Congressional trading disclosures (Pelosi, bipartisan stock ban votes)
+- 13F filing season (Burry, Ackman, Druckenmiller position changes)
+- Semiconductor bottleneck keywords: CoWoS, ABF substrate, HBM3e
+- Geopolitical disruption: sanctions designations, arms trafficking route shifts
+- Physical constraints: transformer lead times, CDMO capacity, helium-3 shortage
+Score news impact from -1.0 to +1.0. State score first.
 End with 3-5 bullet 'Key Points Summary'."""
-SENT_SYS = """You are the SENTIMENT ANALYST. Score sentiment -1.0 to +1.0. State score first. Under 100 words."""
+
+SENT_SYS = """You are the SOCIAL MEDIA / SENTIMENT ANALYST.
+Goal: Gauge crowd and GEOPOLITICAL sentiment.
+Look for 'Shadow Supply Chain' signals: 'port seizure', 'dark fleet', 'sanctions evasion', 'dual-use smuggling', 'precursor shortage', 'cartel disruption'.
+Score sentiment from -1.0 (Supply Shock/Bearish) to +1.0 (Clear/Bullish).
+State score first. Under 100 words."""
+
 FUND_SYS = """You are the FUNDAMENTALS ANALYST. Assess profitability, growth, valuation, leverage.
 End with under/overvalued assessment."""
+
+GEOPOL_SYS = """You are the GEOPOLITICAL / SHADOW SUPPLY CHAIN ANALYST.
+Goal: Assess how illicit supply chain disruptions, sanctions enforcement, 
+and organized crime dynamics create pricing power for LEGITIMATE companies.
+
+Signals to watch:
+- Cocaine/narcotics route disruptions → precursor chemical demand shifts
+- Arms trafficking corridor changes → defense prime contract acceleration  
+- Sanctions evasion crackdowns → commodity rerouting → freight rate spikes
+- Wildlife/timber trafficking enforcement → legal substitute demand
+
+Score geopolitical risk premium from -1.0 (stable) to +1.0 (severe disruption).
+State the score first. Under 200 words.
+
+IMPORTANT INTERPRETATION: A HIGH score (+) means disruption is WORSENING,
+which is BEARISH for broad markets but BULLISH for physical-bottleneck /
+Shadow Alpha assets (they gain pricing power). Flag this explicitly."""
+
 BULL_SYS = """You are the BULLISH RESEARCHER. Build the strongest case FOR investing. Counter the bear. Cite numbers. Max 150 words."""
 BEAR_SYS = """You are the BEARISH RESEARCHER. Build the strongest case AGAINST investing. Counter the bull. Cite numbers. Max 150 words."""
 JUDGE_SYS = """You are the DEBATE FACILITATOR. Return ONLY JSON: {"winner": "BULL" or "BEAR", "confidence": 0.0-1.0, "rationale": "..."}"""
 TRADER_SYS = """You are the TRADER. Decide action, timing, sizing. Return ONLY JSON:
-{"action": "BUY" or "SELL" or "HOLD", "position_pct": 0-100, "confidence": 0.0-1.0, "rationale": "..."}"""
+{"action": "BUY" or "SELL" or "HOLD", "position_pct": 0-100, "confidence": 0.0-1.0, "rationale": "..."}
+
+NOTE: The GEOPOLITICAL analyst's score is a RISK PREMIUM score, not a sentiment score.
+A high geopolitical score (+) favors Shadow Alpha bottleneck assets (BUY signal for them)
+even when general sentiment is bearish. Weigh this accordingly."""
 RISK_AGG_SYS = """You are the RISKY ANALYST. Advocate high-reward strategies. Max 80 words."""
 RISK_NEU_SYS = """You are the NEUTRAL ANALYST. Suggest hedges, scaling. Max 80 words."""
 RISK_SAFE_SYS = """You are the SAFE ANALYST. Flag drawdown risk, suggest cuts or veto. Max 80 words."""
@@ -517,7 +538,6 @@ Given a ticker and its analysis, determine:
 2. The appropriate weight (0.5, 1.0, 1.5, 2.0, 2.5, 3.0)
 3. How it correlates with existing holdings
 4. Whether it strengthens or dilutes the thesis
-
 Return ONLY JSON:
 {
   "recommended_basket": "exact basket name from the list",
@@ -529,9 +549,8 @@ Return ONLY JSON:
   "rationale": "..."
 }"""
 
-
 def run_tradingagents_pipeline(ticker):
-    """Run the full 5-stage TradingAgents analysis on a ticker."""
+    """Run the full 5-stage TradingAgents analysis on a ticker (5-analyst team)."""
     if not AI_ENABLED:
         console.print("[red]❌ AI not available. Set GROQ_API_KEY.[/red]")
         return None
@@ -549,10 +568,10 @@ def run_tradingagents_pipeline(ticker):
     fund_data = get_fundamentals(ticker)
     news_txt = "\n".join("- " + n for n in news_data) or "No recent news."
 
-    # STAGE I: Analyst Team
+    # STAGE I: Analyst Team (5 agents)
     console.print("\n[bold cyan]━━━ STAGE I: ANALYST TEAM ━━━[/bold cyan]")
     analysts = {}
-    with console.status("Running 4 analysts..."):
+    with console.status("Running 5 analysts..."):
         with ThreadPoolExecutor(max_workers=2) as ex:
             futures = {
                 "technical": ex.submit(llm, TECH_SYS,
@@ -563,6 +582,10 @@ def run_tradingagents_pipeline(ticker):
                     f"Ticker: {ticker}\nHeadlines: {json.dumps(news_data)}", MODEL_FAST, 0.3),
                 "fundamentals": ex.submit(llm, FUND_SYS,
                     f"Ticker: {ticker}\nFundamentals:\n{json.dumps(fund_data, indent=2)}"),
+                # ── NEW: Geopolitical / Shadow Supply Chain analyst ──
+                "geopolitical": ex.submit(llm, GEOPOL_SYS,
+                    f"Ticker: {ticker}\nHeadlines:\n{news_txt}\n"
+                    f"Sector context: {fund_data.get('sector', 'N/A')} / {fund_data.get('industry', 'N/A')}"),
             }
             for name, fut in futures.items():
                 try:
@@ -577,7 +600,7 @@ def run_tradingagents_pipeline(ticker):
     reports_txt = "\n".join(f"### {k.upper()} ###\n{v[:600]}" for k, v in analysts.items())
     bull_arg = llm(BULL_SYS, f"Ticker: {ticker}\nREPORTS:\n{reports_txt}\nMake the bullish case.")
     bear_arg = llm(BEAR_SYS, f"Ticker: {ticker}\nREPORTS:\n{reports_txt}\nBULL says: {bull_arg}\nRebut.")
-    transcript = f"[BULL]\n{bull_arg}\n\n[BEAR]\n{bear_arg}"
+    transcript = f"[BULL]\n{bull_arg}\n[BEAR]\n{bear_arg}"
     verdict = extract_json(llm(JUDGE_SYS, f"DEBATE:\n{transcript}", temperature=0.2, force_json=True))
     if not verdict:
         verdict = {"winner": "BEAR", "confidence": 0.5, "rationale": "Judge unavailable."}
@@ -602,7 +625,7 @@ def run_tradingagents_pipeline(ticker):
         risk_opinions[label] = llm(sysp, f"Ticker: {ticker}\nTRADER PLAN:\n{plan_txt}")
     all_risk = "\n".join(f"[{k}]\n{v}" for k, v in risk_opinions.items())
     risk_adj = extract_json(llm(RISK_JUDGE_SYS,
-        f"TRADER PLAN:\n{plan_txt}\nRISK OPINIONS:\n{all_risk}", temperature=0.2, force_json=True))
+                     f"TRADER PLAN:\n{plan_txt}\nRISK OPINIONS:\n{all_risk}", temperature=0.2, force_json=True))
     if not risk_adj:
         risk_adj = {"adjusted_action": trader.get("action", "HOLD"),
                     "adjusted_position_pct": trader.get("position_pct", 0),
@@ -644,7 +667,6 @@ def run_tradingagents_pipeline(ticker):
         "fund_data": fund_data,
     }
 
-
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🤖 AI CORRELATION & BASKET ASSIGNMENT                    ║
 # ╚═══════════════════════════════════════════════════════════╝
@@ -652,10 +674,8 @@ def ai_correlate_and_assign(ticker, pipeline_result):
     """AI determines which SAF basket the ticker belongs to and suggests weight."""
     if not AI_ENABLED:
         return None
-
     console.print(f"\n[bold cyan]━━━ AI CORRELATION & BASKET ASSIGNMENT ━━━[/bold cyan]")
 
-    # Build context for the AI
     basket_summary = "\n".join(f"- {name}: {', '.join(list(h.keys())[:6])}..."
                                for name, h in list(BASKETS.items())[:20])
     analysis_summary = (
@@ -668,18 +688,16 @@ def ai_correlate_and_assign(ticker, pipeline_result):
 
     with console.status("[magenta]AI correlating with SAF portfolio...[/magenta]"):
         out = llm(CORRELATE_SYS,
-                  f"TICKER: {ticker}\n\n"
-                  f"ANALYSIS RESULTS:\n{analysis_summary}\n\n"
-                  f"EXISTING SAF BASKETS:\n{basket_summary}\n\n"
+                  f"TICKER: {ticker}\n"
+                  f"ANALYSIS RESULTS:\n{analysis_summary}\n"
+                  f"EXISTING SAF BASKETS:\n{basket_summary}\n"
                   f"Determine the best basket and weight for this asset.",
                   temperature=0.3, force_json=True)
-
     result = extract_json(out)
     if not result:
         console.print("[yellow]⚠️ AI correlation failed. Manual assignment needed.[/yellow]")
         return None
 
-    # Display correlation result
     corr_tbl = Table(title=f"🤖 AI Assignment — {ticker}", box=box.ROUNDED)
     corr_tbl.add_column("Attribute", style="bold")
     corr_tbl.add_column("Value", overflow="fold")
@@ -692,9 +710,7 @@ def ai_correlate_and_assign(ticker, pipeline_result):
     corr_tbl.add_row("Correlation Notes", result.get("correlation_notes", ""))
     corr_tbl.add_row("Rationale", result.get("rationale", ""))
     console.print(corr_tbl)
-
     return result
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🔄 THE FULL PIPELINE: Screen → Analyze → Assign → Add    ║
@@ -704,26 +720,22 @@ def run_full_pipeline():
     if not AI_ENABLED:
         console.print("[red]❌ AI not available. Set GROQ_API_KEY.[/red]")
         return
-
     ticker = Prompt.ask("\n[bold]Enter ticker to run through SAF pipeline[/bold]",
                         default="MKSI").upper().strip()
 
-    # Check if already in SAF
     existing = [b for b, h in BASKETS.items() if ticker in h]
     if existing:
         console.print(f"[yellow]⚠️ {ticker} is already in: {', '.join(existing)}[/yellow]")
         if not Confirm.ask("[bold]Run pipeline anyway?[/bold]", default=True):
             return
 
-    # Step 1: Run TradingAgents 5-stage pipeline
     pipeline_result = run_tradingagents_pipeline(ticker)
     if not pipeline_result:
         return
 
-    # Step 2: AI correlation & basket assignment
     assignment = ai_correlate_and_assign(ticker, pipeline_result)
+
     if not assignment:
-        # Manual fallback
         console.print("\n[yellow]Manual basket selection:[/yellow]")
         basket_names = list(BASKETS.keys())
         for i, b in enumerate(basket_names[:15], 1):
@@ -736,19 +748,15 @@ def run_full_pipeline():
             target_basket = choice
         weight = float(Prompt.ask("[bold]Weight (0.5/1.0/1.5/2.0/2.5/3.0)[/bold]", default="1.0"))
     else:
-        # Use AI recommendation
         if assignment.get("new_basket_needed"):
             target_basket = assignment.get("new_basket_name", f"🆕 {ticker} THESIS")
         else:
             target_basket = assignment.get("recommended_basket", "")
-            # Validate it exists
-            if target_basket not in BASKETS:
-                # Try fuzzy match
-                matches = [b for b in BASKETS if target_basket.lower()[:10] in b.lower()]
-                target_basket = matches[0] if matches else f"🆕 {ticker} THESIS"
+        if target_basket not in BASKETS:
+            matches = [b for b in BASKETS if target_basket.lower()[:10] in b.lower()]
+            target_basket = matches[0] if matches else f"🆕 {ticker} THESIS"
         weight = float(assignment.get("suggested_weight", 1.0))
 
-    # Step 3: Confirm and add
     console.print(f"\n[bold]Ready to add:[/bold]")
     console.print(f"  Ticker: [cyan]{ticker}[/cyan]")
     console.print(f"  Basket: [cyan]{target_basket}[/cyan]")
@@ -761,7 +769,6 @@ def run_full_pipeline():
         console.print("[dim]Run Option 1 (Dashboard) to see it tracked alongside all baskets.[/dim]")
     else:
         console.print("[yellow]Skipped. Asset not added.[/yellow]")
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🖥️  DISPLAY FUNCTIONS (from sfa2.py)                      ║
@@ -787,19 +794,17 @@ def show_dashboard(pdf):
                 continue
             h = BASKETS[n]
             tbl.add_row(n,
-                fmt(basket_return(pdf, h, 1)), fmt(basket_return(pdf, h, 7)),
-                fmt(basket_return(pdf, h, 30)), fmt(basket_return(pdf, h, "YTD")))
-    # Show custom baskets not in SECTIONS
+                        fmt(basket_return(pdf, h, 1)), fmt(basket_return(pdf, h, 7)),
+                        fmt(basket_return(pdf, h, 30)), fmt(basket_return(pdf, h, "YTD")))
     custom = [b for b in BASKETS if not any(b in names for names in SECTIONS.values())]
     if custom:
         tbl.add_row(f"[bold yellow]── 🆕 AI-ADDED BASKETS ──[/bold yellow]", "", "", "", "")
         for n in custom:
             h = BASKETS[n]
             tbl.add_row(n,
-                fmt(basket_return(pdf, h, 1)), fmt(basket_return(pdf, h, 7)),
-                fmt(basket_return(pdf, h, 30)), fmt(basket_return(pdf, h, "YTD")))
+                        fmt(basket_return(pdf, h, 1)), fmt(basket_return(pdf, h, 7)),
+                        fmt(basket_return(pdf, h, 30)), fmt(basket_return(pdf, h, "YTD")))
     console.print(tbl)
-
 
 def show_all_tickers(pdf):
     console.clear()
@@ -824,7 +829,6 @@ def show_all_tickers(pdf):
                 tbl.add_row(ticker, f"{weight:.1f}", price, fmt(safe_return(pdf, ticker, "YTD")))
             console.print(tbl)
 
-
 def show_ranking(pdf):
     perf = []
     for n, h in BASKETS.items():
@@ -841,7 +845,6 @@ def show_ranking(pdf):
         rk.add_row(tag, n, fmt(y))
     console.print(rk)
 
-
 def search_ticker(pdf):
     query = Prompt.ask("\n[bold]Enter ticker[/bold]", default="NVDA").upper().strip()
     found = [(b, w) for b, h in BASKETS.items() if query in h for w in [h[query]]]
@@ -856,7 +859,6 @@ def search_ticker(pdf):
         tbl.add_row(b, f"{w:.1f}")
     console.print(tbl)
 
-
 def export_csv(pdf):
     rows = []
     for basket, holdings in BASKETS.items():
@@ -870,21 +872,17 @@ def export_csv(pdf):
     pd.DataFrame(rows).to_csv(EXPORT_FILE, index=False)
     console.print(f"[green]✅ Exported to {EXPORT_FILE}[/green]")
 
-
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🎛️  MAIN MENU                                             ║
 # ╚═══════════════════════════════════════════════════════════╝
 def main_menu():
-    # Load any previously saved custom baskets
     load_custom_baskets()
-
     ai_status = "[green]ENABLED[/green]" if AI_ENABLED else "[red]DISABLED[/red]"
     console.print(Panel.fit(
         "[bold magenta]🦅 SKIA ALPHA FUND v3[/bold magenta]\n"
         f"[dim]Unified AI Pipeline · AI: {ai_status}[/dim]",
         box=box.DOUBLE, border_style="magenta",
     ))
-
     pdf = fetch_all_prices()
     if pdf.empty:
         console.print("[red]❌ No data. Exiting.[/red]")
@@ -904,10 +902,8 @@ def main_menu():
         console.print("[bold cyan]║[/bold cyan]  [8] 🤖 Quick AI Correlation Only          [bold cyan]║[/bold cyan]")
         console.print("[bold cyan]║[/bold cyan]  [0] 🚪 Exit                               [bold cyan]║[/bold cyan]")
         console.print("[bold cyan]╚════════════════════════════════════════════╝[/bold cyan]")
-
         choice = Prompt.ask("\n[bold]Select[/bold]",
                             choices=["0","1","2","3","4","5","6","7","8"], default="1")
-
         if choice == "1":
             show_dashboard(pdf)
         elif choice == "2":
@@ -923,7 +919,6 @@ def main_menu():
         elif choice == "7":
             run_full_pipeline()
         elif choice == "8":
-            # Quick correlation without full pipeline
             if not AI_ENABLED:
                 console.print("[red]❌ AI not available.[/red]")
             else:
@@ -940,10 +935,8 @@ def main_menu():
         elif choice == "0":
             console.print("\n[bold red]👋 Goodbye, Skia Alpha Fund Manager.[/bold red]")
             break
-
         if choice != "0":
             console.input("\n[dim]Press Enter to return...[/dim]")
-
 
 if __name__ == "__main__":
     main_menu()
