@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """
 ═══════════════════════════════════════════════════════════════
-  🔍 SAF SCREENER + AI — Shadow Alpha Asset Discovery Engine
+🔍 SAF SCREENER + AI — Shadow Alpha Asset Discovery Engine  (PATCHED: Geopolitical angle)
 ═══════════════════════════════════════════════════════════════
-  Uses the SAME Groq API setup as TradingAgents.py
-
-  Install:  pip install yfinance pandas rich numpy openai
-  Setup:    export GROQ_API_KEY='gsk_YOUR_KEY_HERE'
-  Run:      python saf_screener_ai.py
+Uses the SAME Groq API setup as TradingAgents.py
+PATCH v2: DEEP_REPORT_SYS now includes a GEOPOLITICAL ANGLE section.
+Install:  pip install yfinance pandas rich numpy openai
+Setup:    export GROQ_API_KEY='gsk_YOUR_KEY_HERE'
+Run:      python saf_screener_ai.py
 ═══════════════════════════════════════════════════════════════
 """
-
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -61,13 +60,11 @@ else:
     console.print("[yellow]   Quantitative screening (options 1-7) still works.[/yellow]")
     console.print("[yellow]   For AI features: export GROQ_API_KEY='gsk_...'[/yellow]")
 
-# Same models as TradingAgents.py
 MODEL_DEEP   = os.getenv("TA_DEEP", "openai/gpt-oss-120b")
 MODEL_FAST   = os.getenv("TA_FAST", "openai/gpt-oss-20b")
 MODEL_BACKUP = "qwen/qwen3.6-27b"
 MAX_RETRIES  = 3
 RETRY_DELAY  = 5
-
 
 def llm(system, user, model=None, temperature=0.7, force_json=False):
     """Same LLM call function as TradingAgents.py with retry/fallback."""
@@ -108,7 +105,6 @@ def llm(system, user, model=None, temperature=0.7, force_json=False):
             return ""
     return ""
 
-
 def extract_json(text):
     """Same JSON extractor as TradingAgents.py."""
     if not text:
@@ -124,7 +120,6 @@ def extract_json(text):
         except Exception:
             pass
     return None
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🤖 AI AGENT PROMPTS (Shadow Alpha Specialized)            ║
@@ -206,6 +201,8 @@ Write a concise investment memo (max 300 words) with:
 3. RISK: The single biggest risk
 4. CATALYST: What event would confirm the thesis
 5. SIZING: Suggested weight (0.5x / 1x / 2x / 3x)
+6. GEOPOLITICAL ANGLE: Does this asset BENEFIT from supply-chain disruption?
+   (If yes, higher disruption = stronger thesis.)
 
 Be decisive. Be specific. Cite numbers."""
 
@@ -213,7 +210,6 @@ CANDIDATE_GEN_SYS = """You are a SHADOW ALPHA DISCOVERY ENGINE.
 Given a theme or sector, generate 10 candidate tickers that represent
 physical bottlenecks, oligopolies, or "pick and shovel" plays.
 Avoid obvious mega-cap picks. Focus on hidden, boring, essential suppliers.
-
 Return ONLY valid JSON:
 {
   "theme": "...",
@@ -221,7 +217,6 @@ Return ONLY valid JSON:
     {"ticker": "...", "name": "...", "why": "...", "sector": "..."}
   ]
 }"""
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🌍 DEFAULT CANDIDATE UNIVERSE                            ║
@@ -274,23 +269,21 @@ DEFAULT_UNIVERSE = {
     ],
 }
 
-# SAF basket cross-reference
 SAF_BASKET_TICKERS = {
     "💧 Water": ["PHO", "FIW", "AWK", "XYL", "ECL", "VRT", "FLS", "ROP", "DD"],
     "⚔️ Agro-Chem": ["NTR", "MOS", "CF", "YARIY", "FMC"],
     "🥇 Gold/E-Waste": ["NEM", "GOLD", "AEM", "FNV", "WPM", "RGLD", "OR",
-                        "UMICY", "NDA.DE", "RIO", "MP"],
+                         "UMICY", "NDA.DE", "RIO", "MP"],
     "🌿 EU Cannabis": ["MTRS.ST", "TT", "LIGHT.AS", "SRT.DE", "LIN", "AI.PA"],
     "🛡️ Warfare": ["AVAV", "KTOS", "AMBA", "TDY", "MRCY", "AXON", "PLTR", "LHX", "MP"],
     "⚛️ Quantum": ["MKSI", "COHR", "LITE", "6965.T", "IPGP", "LASR",
-                   "IONQ", "RGTI", "QBTS", "IBM", "HON", "LIN", "APD",
-                   "KEYS", "ADI", "AMD"],
+                    "IONQ", "RGTI", "QBTS", "IBM", "HON", "LIN", "APD",
+                    "KEYS", "ADI", "AMD"],
     "🧬 Biotech Infra": ["TMO", "DHR", "BIO", "CYRX", "SHTPY", "GLW",
-                         "IQV", "MEDP", "LH", "ILMN", "WAT", "A"],
+                          "IQV", "MEDP", "LH", "ILMN", "WAT", "A"],
     "🔬 Borosilicate": ["SHTPY", "STVN", "GXI.DE", "GLW", "7741.T", "5201.T",
-                        "WST", "MTD", "RIO", "MOS", "NTR", "LIN"],
+                         "WST", "MTD", "RIO", "MOS", "NTR", "LIN"],
 }
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🌐 UNIVERSE MANAGEMENT                                   ║
@@ -304,18 +297,15 @@ def load_universe():
             pass
     return DEFAULT_UNIVERSE
 
-
 def save_universe(universe):
     with open(UNIVERSE_FILE, "w") as f:
         json.dump(universe, f, indent=2)
-
 
 def get_all_candidates(universe):
     tickers = set()
     for group in universe.values():
         tickers.update(group)
     return sorted(tickers)
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  📥 DATA FETCHING                                         ║
@@ -329,12 +319,10 @@ def fetch_prices(tickers):
                 shutil.rmtree(p)
             except Exception:
                 pass
-
     end   = datetime.now()
     start = end - timedelta(days=LOOKBACK_DAYS)
     all_data = {}
     chunk_size = 25
-
     for i in range(0, len(tickers), chunk_size):
         chunk = tickers[i:i + chunk_size]
         batch = (i // chunk_size) + 1
@@ -357,12 +345,10 @@ def fetch_prices(tickers):
                     all_data[chunk[0]] = data['Close']
         except Exception as e:
             console.print(f"[red]⚠️ Batch {batch} failed: {e}[/red]")
-
     if not all_data:
         return pd.DataFrame()
     console.print(f"[green]✅ Fetched {len(all_data)} tickers.[/green]")
     return pd.DataFrame(all_data)
-
 
 def fetch_fundamentals(ticker):
     try:
@@ -379,7 +365,6 @@ def fetch_fundamentals(ticker):
         }
     except Exception:
         return {}
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  📊 QUANTITATIVE ANALYSIS                                 ║
@@ -402,7 +387,6 @@ def period_return(prices, days):
         base = valid.iloc[0]
     return ((prices.iloc[-1] - base) / base) * 100
 
-
 def max_drawdown(prices):
     prices = prices.dropna()
     if len(prices) < 2:
@@ -410,7 +394,6 @@ def max_drawdown(prices):
     peak = prices.cummax()
     dd   = (prices - peak) / peak
     return dd.min() * 100
-
 
 def compute_correlation(ticker_prices, spy_prices):
     common = ticker_prices.index.intersection(spy_prices.index)
@@ -422,7 +405,6 @@ def compute_correlation(ticker_prices, spy_prices):
     if len(common2) < 60:
         return None
     return t_ret[common2].corr(s_ret[common2])
-
 
 def compute_shadow_alpha_score(pdf, ticker, spy):
     if ticker not in pdf.columns:
@@ -453,7 +435,6 @@ def compute_shadow_alpha_score(pdf, ticker, spy):
     stab_score = max(0, min(25, 25 - (ann_vol * 25) - (abs(mdd) * 0.4)))
 
     total = trend_score + indep_score + rs_score + stab_score
-
     return {
         "ticker":       ticker,
         "price":        round(prices.iloc[-1], 2),
@@ -466,7 +447,6 @@ def compute_shadow_alpha_score(pdf, ticker, spy):
         "stability":    round(stab_score, 1),
         "total":        round(total, 1),
     }
-
 
 def check_investability(ticker):
     try:
@@ -494,7 +474,6 @@ def check_investability(ticker):
             "status": "❌ NO DATA",
         }
 
-
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🖥️  DISPLAY HELPERS                                       ║
 # ╚═══════════════════════════════════════════════════════════╝
@@ -504,7 +483,6 @@ def fmt(val, suffix="%"):
     c = "green" if val >= 0 else "red"
     a = "▲" if val >= 0 else "▼"
     return f"[{c}]{a} {val:+.2f}{suffix}[/{c}]"
-
 
 def fmt_mc(mc):
     if mc is None:
@@ -516,7 +494,6 @@ def fmt_mc(mc):
     if mc >= 1e6:
         return f"${mc/1e6:.1f}M"
     return f"${mc:,.0f}"
-
 
 def save_ai_report(report_type, data):
     """Log AI reports for audit trail."""
@@ -532,10 +509,9 @@ def save_ai_report(report_type, data):
         "date": datetime.now().isoformat(),
         "data": data,
     })
-    log = log[-100:]  # Keep last 100
+    log = log[-100:]
     with open(AI_LOG_FILE, "w") as f:
         json.dump(log, f, indent=2, default=str)
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  📡 OPTION 1: FULL SCREEN                                 ║
@@ -577,7 +553,6 @@ def run_full_screen(universe):
     tbl.add_column("Stab", justify="right", width=6)
     tbl.add_column("TOTAL", justify="right", width=8, style="bold")
     tbl.add_column("Signal", justify="center", width=12)
-
     for i, r in enumerate(results, 1):
         if r["total"] >= SCORE_THRESHOLD:
             signal = "[bold green]🎯 CANDIDATE[/bold green]"
@@ -594,17 +569,14 @@ def run_full_screen(universe):
             f"[bold]{r['total']:.1f}[/bold]", signal,
         )
     console.print(tbl)
-
     candidates = [r for r in results if r["total"] >= SCORE_THRESHOLD]
     watchlist  = [r for r in results if SCORE_THRESHOLD - 10 <= r["total"] < SCORE_THRESHOLD]
     console.print(f"\n[bold green]🎯 {len(candidates)} CANDIDATES[/bold green] (score ≥ {SCORE_THRESHOLD})")
     console.print(f"[yellow]👀 {len(watchlist)} ON WATCHLIST[/yellow]")
-
     df = pd.DataFrame(results)
     df.to_csv(EXPORT_FILE, index=False)
     console.print(f"\n[dim]💾 Saved to {EXPORT_FILE}[/dim]")
     return results
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🔍 OPTION 2: DEEP ANALYSIS                               ║
@@ -618,7 +590,6 @@ def deep_analysis(universe):
         return
     spy = pdf[BENCHMARK]
 
-    # Stage 4
     console.print("\n[bold cyan]═══ STAGE 4: INVESTABILITY FILTER ═══[/bold cyan]")
     inv = check_investability(ticker)
     inv_tbl = Table(box=box.SIMPLE)
@@ -634,7 +605,6 @@ def deep_analysis(universe):
     inv_tbl.add_row("Overall", inv["status"], f"{inv['passed']}/4")
     console.print(inv_tbl)
 
-    # Stage 5
     console.print("\n[bold cyan]═══ STAGE 5: QUANTITATIVE VALIDATION ═══[/bold cyan]")
     score = compute_shadow_alpha_score(pdf, ticker, spy)
     if not score:
@@ -655,7 +625,6 @@ def deep_analysis(universe):
     q_tbl.add_row("[bold]COMPOSITE[/bold]", "", f"[bold]{score['total']:.1f}[/bold]", "[bold]100[/bold]")
     console.print(q_tbl)
 
-    # Interpretation
     if score["correlation"] < 0.5:
         console.print("[green]✅ LOW SPY correlation → Physical supply/demand driver (true bottleneck signal)[/green]")
     elif score["correlation"] < 0.75:
@@ -663,7 +632,6 @@ def deep_analysis(universe):
     else:
         console.print("[red]❌ HIGH SPY correlation → Beta play, NOT a true bottleneck[/red]")
 
-    # Fundamentals
     console.print("\n[bold cyan]═══ FUNDAMENTALS ═══[/bold cyan]")
     fund = fetch_fundamentals(ticker)
     if fund:
@@ -683,7 +651,6 @@ def deep_analysis(universe):
         if gm and gm > 0.40:
             console.print(f"[green]✅ Gross margin {gm*100:.1f}% > 40% → Pricing power (bottleneck signal)[/green]")
 
-    # SAF cross-reference
     console.print("\n[bold cyan]═══ SAF CROSS-REFERENCE ═══[/bold cyan]")
     found_in = [b for b, ts in SAF_BASKET_TICKERS.items() if ticker in ts]
     if found_in:
@@ -693,7 +660,6 @@ def deep_analysis(universe):
     else:
         console.print(f"[green]✅ {ticker} NOT yet in SAF → Potential new addition[/green]")
 
-    # AI Enhancement (if available)
     if AI_ENABLED:
         console.print("\n[bold magenta]═══ 🤖 AI FUND MANAGER VERDICT ═══[/bold magenta]")
         with console.status("[magenta]AI synthesizing report...[/magenta]"):
@@ -706,11 +672,10 @@ def deep_analysis(universe):
                 f"Write the final investment memo."
             )
             memo = llm(DEEP_REPORT_SYS, ai_prompt, temperature=0.4)
-        if memo:
-            console.print(Panel(memo, title=f"🤖 AI Verdict — {ticker}",
-                                border_style="magenta", box=box.ROUNDED))
-            save_ai_report("deep_analysis", {"ticker": ticker, "memo": memo, "score": score})
-
+            if memo:
+                console.print(Panel(memo, title=f"🤖 AI Verdict — {ticker}",
+                                    border_style="magenta", box=box.ROUNDED))
+                save_ai_report("deep_analysis", {"ticker": ticker, "memo": memo, "score": score})
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🧮 OPTION 3: INTERACTIVE BOTTLENECK SCORING              ║
@@ -736,11 +701,9 @@ BOTTLENECK_CRITERIA = [
      "hint": "5=Many sectors | 3=Few sectors | 1=Single sector"},
 ]
 
-
 def interactive_bottleneck_score():
     ticker = Prompt.ask("\n[bold]Enter ticker to score[/bold]", default="MKSI").upper().strip()
 
-    # AI pre-scoring (if available)
     ai_scores = None
     if AI_ENABLED:
         console.print(f"\n[dim]🤖 AI pre-scoring {ticker}...[/dim]")
@@ -748,7 +711,7 @@ def interactive_bottleneck_score():
             ai_out = llm(BOTTLENECK_ANALYST_SYS,
                          f"Ticker: {ticker}\nAnalyze this company as a potential Shadow Alpha bottleneck.",
                          temperature=0.3, force_json=True)
-        ai_scores = extract_json(ai_out)
+            ai_scores = extract_json(ai_out)
 
     console.print(Panel.fit(
         f"[bold magenta]🧮 BOTTLENECK SCORING — {ticker}[/bold magenta]\n"
@@ -756,7 +719,6 @@ def interactive_bottleneck_score():
         box=box.DOUBLE, border_style="magenta",
     ))
 
-    # Show AI suggestion if available
     if ai_scores and "scores" in ai_scores:
         console.print(f"\n[bold yellow]🤖 AI SUGGESTION:[/bold yellow]")
         console.print(f"   Company: {ai_scores.get('company_name', '?')}")
@@ -778,7 +740,6 @@ def interactive_bottleneck_score():
         console.print(f"   Key Risk: {ai_scores.get('key_risk', '?')}")
         save_ai_report("bottleneck_analysis", {"ticker": ticker, "ai": ai_scores})
 
-    # Manual scoring
     console.print(f"\n[bold]Now score it yourself (AI scores shown as reference):[/bold]")
     scores = {}
     total = 0
@@ -797,7 +758,6 @@ def interactive_bottleneck_score():
             except Exception:
                 console.print("[red]Invalid input.[/red]")
 
-    # Results
     console.print("\n[bold cyan]═══ YOUR SCORING ═══[/bold cyan]")
     r_tbl = Table(box=box.SIMPLE_HEAVY)
     r_tbl.add_column("Criterion", style="bold")
@@ -823,12 +783,10 @@ def interactive_bottleneck_score():
     else:
         console.print(f"\n[red]❌ Does NOT qualify ({total}/30 < {BOTTLENECK_PASS})[/red]")
 
-    # Log
     log_entry = {"ticker": ticker, "date": datetime.now().isoformat(),
                  "your_scores": scores, "your_total": total,
                  "ai_scores": ai_scores, "qualified": total >= BOTTLENECK_PASS}
     save_ai_report("bottleneck_scoring", log_entry)
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  📋 OPTION 4: VIEW UNIVERSE                               ║
@@ -842,7 +800,6 @@ def view_universe(universe):
         console.print("  " + ", ".join(tickers))
         total += len(tickers)
     console.print(f"\n[bold]Total: {total} candidates[/bold]")
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  ➕ OPTION 5: ADD TICKER                                   ║
@@ -874,7 +831,6 @@ def add_to_universe(universe):
     else:
         console.print(f"[yellow]⚠️ {ticker} already in '{sector}'.[/yellow]")
 
-
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🗑️  OPTION 6: REMOVE TICKER                              ║
 # ╚═══════════════════════════════════════════════════════════╝
@@ -890,7 +846,6 @@ def remove_from_universe(universe):
         console.print(f"[red]❌ {ticker} not found.[/red]")
     else:
         save_universe(universe)
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  📊 OPTION 7: COMPARE TOP CANDIDATES                      ║
@@ -919,7 +874,6 @@ def compare_candidates():
     console.print(tbl)
     console.print("[dim]● = Already in SAF baskets[/dim]")
 
-
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🤖 OPTION 8: AI SUPPLY CHAIN DISCOVERY (Stages 1-2)      ║
 # ╚═══════════════════════════════════════════════════════════╝
@@ -928,23 +882,19 @@ def ai_supply_chain_discovery():
     if not AI_ENABLED:
         console.print("[red]❌ AI not available. Set GROQ_API_KEY.[/red]")
         return
-
     trend = Prompt.ask(
         "\n[bold]Enter a demand signal / trend[/bold]",
         default="solid-state batteries for electric vehicles",
     )
-
     console.print(Panel.fit(
         f"[bold magenta]🤖 AI SUPPLY CHAIN DISCOVERY[/bold magenta]\n"
         f"[dim]Trend: {trend}[/dim]",
         box=box.DOUBLE, border_style="magenta",
     ))
-
     with console.status("[magenta]AI mapping supply chain & identifying bottlenecks...[/magenta]"):
         out = llm(SUPPLY_CHAIN_SYS,
-                  f"Map the supply chain for this trend and find the Shadow Alpha bottlenecks:\n\nTREND: {trend}",
+                  f"Map the supply chain for this trend and find the Shadow Alpha bottlenecks:\nTREND: {trend}",
                   temperature=0.5, force_json=True)
-
     result = extract_json(out)
     if not result:
         console.print("[red]❌ AI returned invalid output. Try again.[/red]")
@@ -952,12 +902,10 @@ def ai_supply_chain_discovery():
             console.print(Panel(out, title="Raw AI Output", border_style="yellow"))
         return
 
-    # Display supply chain layers
     console.print("\n[bold cyan]═══ SUPPLY CHAIN MAP ═══[/bold cyan]")
     for i, layer in enumerate(result.get("supply_chain", []), 1):
         console.print(f"  {'  ' * (i-1)}└─ {layer}")
 
-    # Display bottlenecks
     console.print("\n[bold cyan]═══ BOTTLENECKS IDENTIFIED ═══[/bold cyan]")
     for i, b in enumerate(result.get("bottlenecks", []), 1):
         b_tbl = Table(title=f"Bottleneck #{i}: {b.get('name', '?')}", box=box.ROUNDED)
@@ -969,12 +917,10 @@ def ai_supply_chain_discovery():
         b_tbl.add_row("Substitutability", b.get("substitutability", "?"))
         console.print(b_tbl)
 
-    # Top pick
     top = result.get("top_pick", "?")
     console.print(f"\n[bold green]🎯 AI TOP PICK: {top}[/bold green]")
     console.print(f"[dim]Thesis: {result.get('thesis_summary', '')}[/dim]")
 
-    # Ask to add candidates
     all_tickers = set()
     for b in result.get("bottlenecks", []):
         all_tickers.update(b.get("tickers", []))
@@ -988,9 +934,7 @@ def ai_supply_chain_discovery():
                 universe[sector_name].append(t.upper().strip())
         save_universe(universe)
         console.print(f"[green]✅ Added to sector '{sector_name}'[/green]")
-
     save_ai_report("supply_chain_discovery", {"trend": trend, "result": result})
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🤖 OPTION 9: AI BOTTLENECK ANALYSIS (Stage 3)            ║
@@ -1000,20 +944,16 @@ def ai_bottleneck_analysis():
     if not AI_ENABLED:
         console.print("[red]❌ AI not available. Set GROQ_API_KEY.[/red]")
         return
-
     ticker = Prompt.ask("\n[bold]Enter ticker for AI bottleneck analysis[/bold]", default="MKSI").upper().strip()
-
     console.print(Panel.fit(
         f"[bold magenta]🤖 AI BOTTLENECK ANALYSIS — {ticker}[/bold magenta]\n"
         f"[dim]6-Criteria Shadow Alpha Rubric[/dim]",
         box=box.DOUBLE, border_style="magenta",
     ))
-
     with console.status("[magenta]AI researching and scoring...[/magenta]"):
         out = llm(BOTTLENECK_ANALYST_SYS,
                   f"Ticker: {ticker}\nPerform full Shadow Alpha bottleneck analysis.",
                   temperature=0.3, force_json=True)
-
     result = extract_json(out)
     if not result:
         console.print("[red]❌ AI returned invalid output.[/red]")
@@ -1021,20 +961,16 @@ def ai_bottleneck_analysis():
             console.print(Panel(out, title="Raw Output", border_style="yellow"))
         return
 
-    # Display
     console.print(f"\n[bold]Company:[/bold] {result.get('company_name', '?')}")
     console.print(f"[bold]What they do:[/bold] {result.get('what_they_do', '?')}")
-
     scores = result.get("scores", {})
     reasoning = result.get("reasoning", {})
     total = result.get("total", sum(scores.values()))
-
     s_tbl = Table(box=box.SIMPLE_HEAVY)
     s_tbl.add_column("Criterion", style="bold")
     s_tbl.add_column("Score", justify="center", width=6)
     s_tbl.add_column("Bar", width=20)
     s_tbl.add_column("AI Reasoning", overflow="fold")
-
     for c in BOTTLENECK_CRITERIA:
         key = c["name"].lower().replace(" ", "_")
         s = scores.get(key, 0)
@@ -1050,14 +986,11 @@ def ai_bottleneck_analysis():
     v_color = "green" if "TRUE" in verdict.upper() else "red"
     console.print(f"\n[bold {v_color}]🏆 AI VERDICT: {verdict}[/bold {v_color}]")
     console.print(f"[dim]Key Risk: {result.get('key_risk', '?')}[/dim]")
-
     if total >= BOTTLENECK_PASS:
-        console.print(f"\n[bold green]✅ PASSES ({total}/{30} ≥ {BOTTLENECK_PASS}) → Run Deep Analysis (Option 2) next[/bold green]")
+        console.print(f"\n[bold green]✅ PASSES ({total}/30 ≥ {BOTTLENECK_PASS}) → Run Deep Analysis (Option 2) next[/bold green]")
     else:
-        console.print(f"\n[red]❌ BELOW THRESHOLD ({total}/{30} < {BOTTLENECK_PASS})[/red]")
-
+        console.print(f"\n[red]❌ BELOW THRESHOLD ({total}/30 < {BOTTLENECK_PASS})[/red]")
     save_ai_report("ai_bottleneck_analysis", {"ticker": ticker, "result": result})
-
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🤖 OPTION 10: AI DEEP REPORT (Stages 4-6 Combined)       ║
@@ -1067,46 +1000,38 @@ def ai_deep_report():
     if not AI_ENABLED:
         console.print("[red]❌ AI not available. Set GROQ_API_KEY.[/red]")
         return
-
     ticker = Prompt.ask("\n[bold]Enter ticker for AI Deep Report[/bold]", default="MKSI").upper().strip()
-
     console.print(f"\n[dim]🤖 Generating AI Deep Report for {ticker}...[/dim]")
 
-    # Gather all data
     pdf = fetch_prices([ticker, BENCHMARK])
     if pdf.empty or ticker not in pdf.columns:
         console.print(f"[red]❌ No price data for {ticker}.[/red]")
         return
-
     spy = pdf[BENCHMARK]
     score = compute_shadow_alpha_score(pdf, ticker, spy)
     fund = fetch_fundamentals(ticker)
     inv = check_investability(ticker)
-
-    # SAF cross-reference
     found_in = [b for b, ts in SAF_BASKET_TICKERS.items() if ticker in ts]
 
     with console.status("[magenta]AI writing investment memo...[/magenta]"):
         ai_prompt = (
-            f"Ticker: {ticker}\n\n"
-            f"QUANTITATIVE SHADOW ALPHA SCORE:\n{json.dumps(score, indent=2)}\n\n"
-            f"FUNDAMENTALS:\n{json.dumps(fund, indent=2, default=str)}\n\n"
+            f"Ticker: {ticker}\n"
+            f"QUANTITATIVE SHADOW ALPHA SCORE:\n{json.dumps(score, indent=2)}\n"
+            f"FUNDAMENTALS:\n{json.dumps(fund, indent=2, default=str)}\n"
             f"INVESTABILITY: {inv['status']} ({inv['passed']}/4 checks)\n"
             f"Market Cap: {fmt_mc(inv['market_cap'])}\n"
-            f"Avg Volume: {inv['avg_volume']:,}\n\n"
-            f"ALREADY IN SAF BASKETS: {'Yes: ' + ', '.join(found_in) if found_in else 'No'}\n\n"
+            f"Avg Volume: {inv['avg_volume']:,}\n"
+            f"ALREADY IN SAF BASKETS: {'Yes: ' + ', '.join(found_in) if found_in else 'No'}\n"
             f"Write the final Shadow Alpha investment memo. Be decisive."
         )
         memo = llm(DEEP_REPORT_SYS, ai_prompt, temperature=0.4)
-
-    if memo:
-        console.print(Panel(memo, title=f"🤖 FUND MANAGER MEMO — {ticker}",
-                            border_style="magenta", box=box.DOUBLE))
-        save_ai_report("ai_deep_report", {"ticker": ticker, "memo": memo,
-                                          "score": score, "fundamentals": fund})
-    else:
-        console.print("[red]❌ AI could not generate report.[/red]")
-
+        if memo:
+            console.print(Panel(memo, title=f"🤖 FUND MANAGER MEMO — {ticker}",
+                                border_style="magenta", box=box.DOUBLE))
+            save_ai_report("ai_deep_report", {"ticker": ticker, "memo": memo,
+                                              "score": score, "fundamentals": fund})
+        else:
+            console.print("[red]❌ AI could not generate report.[/red]")
 
 # ╔═══════════════════════════════════════════════════════════╗
 # ║  🎛️  MAIN MENU                                             ║
@@ -1118,7 +1043,6 @@ def main_menu():
         f"[dim]Shadow Alpha Asset Discovery Engine · AI: {ai_status}[/dim]",
         box=box.DOUBLE, border_style="magenta",
     ))
-
     universe = load_universe()
 
     while True:
@@ -1137,13 +1061,11 @@ def main_menu():
         console.print("[bold cyan]║[/bold cyan]  [10] 🤖 AI Deep Report (Full Memo)        [bold cyan]║[/bold cyan]")
         console.print("[bold cyan]║[/bold cyan]  [0] 🚪 Exit                               [bold cyan]║[/bold cyan]")
         console.print("[bold cyan]╚════════════════════════════════════════════╝[/bold cyan]")
-
         choice = Prompt.ask(
             "\n[bold]Select option[/bold]",
             choices=["0","1","2","3","4","5","6","7","8","9","10"],
             default="1",
         )
-
         if choice == "1":
             run_full_screen(universe)
         elif choice == "2":
@@ -1167,10 +1089,8 @@ def main_menu():
         elif choice == "0":
             console.print("\n[bold red]👋 Goodbye, Shadow Alpha Analyst.[/bold red]")
             break
-
         if choice != "0":
             console.input("\n[dim]Press Enter to return to menu...[/dim]")
-
 
 if __name__ == "__main__":
     main_menu()
