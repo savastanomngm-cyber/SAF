@@ -1,37 +1,41 @@
 #!/usr/bin/env python3
 """
 ===============================================================
-TRADINGAGENTS - FREE PIPELINE v3 (Groq + YFinance)
+TRADINGAGENTS - FREE PIPELINE v3 (Groq + YFinance)  (PATCHED: Geopolitical Analyst)
 ===============================================================
 Based on: "TradingAgents: Multi-Agents LLM Financial Trading Framework"
-          (arXiv:2412.20138) & https://github.com/TauricResearch/TradingAgents
+(arXiv:2412.20138) & https://github.com/TauricResearch/TradingAgents
 
 Architecture (5-Stage Firm Simulation from the paper):
-  I.   ANALYST TEAM   - Technical / News / Sentiment / Fundamentals (parallel)
-  II.  RESEARCH TEAM  - Bull vs Bear multi-round debate + facilitator judge
-  III. TRADER         - Decision signal (BUY/SELL/HOLD) + reflection memory
-  IV.  RISK TEAM      - Aggressive / Neutral / Conservative review + judge
-  V.   FUND MANAGER   - Final approval & execution signal
+I.   ANALYST TEAM   - Technical / News / Sentiment / Fundamentals / Geopolitical (parallel)
+II.  RESEARCH TEAM  - Bull vs Bear multi-round debate + facilitator judge
+III. TRADER         - Decision signal (BUY/SELL/HOLD) + reflection memory
+IV.  RISK TEAM      - Aggressive / Neutral / Conservative review + judge
+V.   FUND MANAGER   - Final approval & execution signal
+
+PATCH v2:
+  • Upgraded Analyst Team 4 → 5 agents (added GEOPOLITICAL / Shadow Supply Chain)
+  • New SENT_SYS, NEWS_SYS, GEOPOL_SYS prompts
+  • TRADER_SYS now interprets geopolitical risk-premium scoring correctly
 
 Models (Groq Free Tier, August 2026 - post-deprecation):
-  DEEP:     openai/gpt-oss-120b  (120B params, 500 t/s, 131K context)
-  FAST:     openai/gpt-oss-20b   (20B params, 1000 t/s)
-  FALLBACK: qwen/qwen3.6-27b     (auto-switch if primaries get deprecated)
+DEEP:     openai/gpt-oss-120b  (120B params, 500 t/s, 131K context)
+FAST:     openai/gpt-oss-20b   (20B params, 1000 t/s)
+FALLBACK: qwen/qwen3.6-27b     (auto-switch if primaries get deprecated)
 
 Install:
-  pip install openai yfinance pandas rich requests
+    pip install openai yfinance pandas rich requests
 
 Run:
-  python tradingagents_free.py NVDA
-  python tradingagents_free.py --batch "simons"
-  python tradingagents_free.py --batch ALL
-  python tradingagents_free.py --list-baskets
+    python tradingagents_free.py NVDA
+    python tradingagents_free.py --batch "simons"
+    python tradingagents_free.py --batch ALL
+    python tradingagents_free.py --list-baskets
 ===============================================================
 """
 import sys, os, json, re, argparse, time
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-
 import yfinance as yf
 import pandas as pd
 from rich.console import Console
@@ -60,8 +64,6 @@ if not GROQ_API_KEY:
 
 client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
 
-# Groq models (August 2026). llama-3.3-70b-versatile & llama-3.1-8b-instant
-# were decommissioned 08/16/26 per https://console.groq.com/docs/deprecations
 MODEL_DEEP   = os.getenv("TA_DEEP", "openai/gpt-oss-120b")
 MODEL_FAST   = os.getenv("TA_FAST", "openai/gpt-oss-20b")
 MODEL_BACKUP = "qwen/qwen3.6-27b"
@@ -77,7 +79,6 @@ RETRY_DELAY   = 5
 def llm(system, user, model=None, temperature=0.7, force_json=False):
     target_model = model or MODEL_DEEP
     use_json = force_json
-
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             kwargs = dict(
@@ -95,17 +96,14 @@ def llm(system, user, model=None, temperature=0.7, force_json=False):
             return resp.choices[0].message.content.strip()
         except Exception as e:
             err = str(e)
-            # JSON mode unsupported by this model -> retry as plain text
             if "response_format" in err or ("json" in err.lower() and "400" in err):
                 use_json = False
                 continue
-            # Rate limited -> backoff and retry
             if "429" in err or "rate" in err.lower():
                 wait = RETRY_DELAY * attempt
                 console.print(f"[yellow]Rate limited. Waiting {wait}s (attempt {attempt}/{MAX_RETRIES})...[/yellow]")
                 time.sleep(wait)
                 continue
-            # Model decommissioned -> fallback model
             if ("404" in err or "not_found" in err or "decommissioned" in err) and target_model != MODEL_BACKUP:
                 console.print(f"[yellow]Model {target_model} unavailable -> falling back to {MODEL_BACKUP}[/yellow]")
                 target_model = MODEL_BACKUP
@@ -114,7 +112,6 @@ def llm(system, user, model=None, temperature=0.7, force_json=False):
             return ""
     console.print(f"[red]LLM call failed after {MAX_RETRIES} retries[/red]")
     return ""
-
 
 def extract_json(text):
     """Robustly extract the first JSON object from an LLM reply."""
@@ -146,28 +143,22 @@ def get_price_df(ticker):
         console.print(f"[red]Data error ({ticker}): {e}[/red]")
         return pd.DataFrame()
 
-
 def compute_indicators(df):
     """Technical indicators: SMA/RSI/MACD/Bollinger/ATR/returns."""
     if df.empty or len(df) < 50:
         return {"error": "Insufficient data"}
     c = df["Close"]
-
     sma20, sma50, sma200 = c.rolling(20).mean(), c.rolling(50).mean(), c.rolling(200).mean()
     ema12, ema26 = c.ewm(span=12).mean(), c.ewm(span=26).mean()
-
     delta = c.diff()
     gain  = delta.clip(lower=0).rolling(14).mean()
     loss  = (-delta.clip(upper=0)).rolling(14).mean()
     rsi   = 100 - (100 / (1 + gain / loss))
-
     macd      = ema12 - ema26
     macd_sig  = macd.ewm(span=9).mean()
     macd_hist = macd - macd_sig
-
     bb_mid, bb_std = c.rolling(20).mean(), c.rolling(20).std()
     bb_up, bb_lo = bb_mid + 2 * bb_std, bb_mid - 2 * bb_std
-
     tr = pd.concat([df["High"] - df["Low"],
                     (df["High"] - c.shift()).abs(),
                     (df["Low"]  - c.shift()).abs()], axis=1).max(axis=1)
@@ -201,7 +192,6 @@ def compute_indicators(df):
         "volume":         safe(L["Volume"]) if "Volume" in df.columns else None,
     }
 
-
 def get_news(ticker, limit=8):
     try:
         raw = yf.Ticker(ticker).news or []
@@ -217,7 +207,6 @@ def get_news(ticker, limit=8):
         return items
     except Exception:
         return []
-
 
 def get_fundamentals(ticker):
     try:
@@ -235,76 +224,110 @@ def get_fundamentals(ticker):
 
 # =============================================================
 # AGENT ROLE PROMPTS (aligned with paper Appendix S1.4)
+# PATCHED: added GEOPOL_SYS, upgraded NEWS_SYS & SENT_SYS
 # =============================================================
 TECH_SYS = """You are the MARKET (TECHNICAL) ANALYST at a quantitative trading firm.
 Goal: Analyze market trends using technical indicators (SMA, RSI, MACD, Bollinger Bands, ATR).
 Interpret momentum, trend strength, volatility regime, support/resistance.
 End with a 'Key Points Summary' of 3-5 bullets. Cite actual numbers."""
 
-NEWS_SYS = """You are the NEWS ANALYST at a quantitative trading firm.
-Goal: Analyze global economic trends and news events affecting this stock.
-Categorize catalysts (macro, sector, company), flag upcoming events.
+NEWS_SYS = """You are the NEWS ANALYST at a quantitative trading firm. 
+When analyzing headlines, cross-reference against these supply-chain signals:
+- Congressional trading disclosures (Pelosi, bipartisan stock ban votes)
+- 13F filing season (Burry, Ackman, Druckenmiller position changes)
+- Semiconductor bottleneck keywords: CoWoS, ABF substrate, HBM3e
+- Geopolitical disruption: sanctions designations, arms trafficking route shifts
+- Physical constraints: transformer lead times, CDMO capacity, helium-3 shortage
+Score news impact from -1.0 to +1.0. State score first.
 End with a 'Key Points Summary' of 3-5 bullets."""
 
 SENT_SYS = """You are the SOCIAL MEDIA / SENTIMENT ANALYST at a quantitative trading firm.
-Goal: Gauge crowd sentiment from the headlines provided (proxy for social media).
-Score overall sentiment from -1.0 (very bearish) to +1.0 (very bullish); state the score first.
-Keep it under 150 words."""
+Goal: Gauge crowd and GEOPOLITICAL sentiment.
+Look for 'Shadow Supply Chain' signals: 'port seizure', 'dark fleet', 'sanctions evasion', 'dual-use smuggling', 'precursor shortage', 'cartel disruption'.
+Score sentiment from -1.0 (Supply Shock/Bearish) to +1.0 (Clear/Bullish).
+State the score first. Under 100 words."""
 
 FUND_SYS = """You are the FUNDAMENTALS ANALYST at a quantitative trading firm.
 Goal: Analyze and evaluate company financials and stock performance.
 Assess profitability, growth, valuation, liquidity, leverage, analyst targets, insider/institutional holdings.
 End with a 'Key Points Summary' stating under/overvalued assessment."""
 
+GEOPOL_SYS = """You are the GEOPOLITICAL / SHADOW SUPPLY CHAIN ANALYST.
+Goal: Assess how illicit supply chain disruptions, sanctions enforcement, 
+and organized crime dynamics create pricing power for LEGITIMATE companies.
+
+Signals to watch:
+- Cocaine/narcotics route disruptions → precursor chemical demand shifts
+- Arms trafficking corridor changes → defense prime contract acceleration  
+- Sanctions evasion crackdowns → commodity rerouting → freight rate spikes
+- Wildlife/timber trafficking enforcement → legal substitute demand
+
+Score geopolitical risk premium from -1.0 (stable) to +1.0 (severe disruption).
+State the score first. Under 200 words.
+
+IMPORTANT INTERPRETATION: A HIGH score (+) means disruption is WORSENING,
+which is BEARISH for broad markets but BULLISH for physical-bottleneck /
+Shadow Alpha assets (they gain pricing power). Flag this explicitly."""
+
 BULL_SYS = """You are the BULLISH RESEARCHER. Build the strongest evidence-based case FOR investing.
 Directly counter the bear's points. Cite numbers from the analyst reports. Max 200 words."""
-
 BEAR_SYS = """You are the BEARISH RESEARCHER. Build the strongest evidence-based case AGAINST investing.
 Directly counter the bull's points. Cite numbers from the analyst reports. Max 200 words."""
-
 JUDGE_SYS = """You are the DEBATE FACILITATOR. Review the debate transcript and select the prevailing perspective.
 Return ONLY valid JSON: {"winner": "BULL" or "BEAR", "confidence": 0.0-1.0, "rationale": "..."}"""
-
 TRADER_SYS = """You are the TRADER. Synthesize analyst reports, the debate outcome, and your past decisions
 (reflect on what worked and what failed). Decide action, timing, and sizing.
-Return ONLY valid JSON: {"action": "BUY" or "SELL" or "HOLD", "position_pct": 0-100, "confidence": 0.0-1.0, "rationale": "...", "stop_loss_pct": 0-100, "take_profit_pct": 0-100}"""
+Return ONLY valid JSON: {"action": "BUY" or "SELL" or "HOLD", "position_pct": 0-100, "confidence": 0.0-1.0, "rationale": "...", "stop_loss_pct": 0-100, "take_profit_pct": 0-100}
 
+NOTE: The GEOPOLITICAL analyst's score is a RISK PREMIUM score, not a sentiment score.
+A high geopolitical score (+) favors Shadow Alpha bottleneck assets (BUY signal for them)
+even when general sentiment is bearish. Weigh this accordingly."""
 RISK_AGGRESSIVE_SYS = """You are the RISKY ANALYST. Advocate high-reward, high-risk strategies; challenge excessive caution. Max 120 words."""
 RISK_NEUTRAL_SYS    = """You are the NEUTRAL ANALYST. Provide a balanced perspective; suggest hedges, scaling, partial sizing. Max 120 words."""
 RISK_SAFE_SYS       = """You are the SAFE ANALYST. Emphasize conservative strategy and risk mitigation; flag drawdown risk, suggest cuts or veto. Max 120 words."""
-
 RISK_JUDGE_SYS = """You are the RISK REPORT MANAGER. Weigh the three risk perspectives and adjust the trader's plan within prudent risk constraints.
 Return ONLY valid JSON: {"adjusted_action": "BUY" or "SELL" or "HOLD", "adjusted_position_pct": 0-100, "risk_score": 1-10, "risk_notes": "..."}"""
-
 MANAGER_SYS = """You are the FUND MANAGER with final authority. Review the trader's plan and risk-team adjustments; approve, modify, or veto.
 Return ONLY valid JSON: {"approved": true or false, "final_action": "BUY" or "SELL" or "HOLD", "final_position_pct": 0-100, "notes": "..."}"""
 
 # =============================================================
-# STAGE I: ANALYST TEAM (parallel, per paper Fig.1)
+# STAGE I: ANALYST TEAM (parallel, per paper Fig.1) — 5 agents
 # =============================================================
 def run_analysts(ticker):
     df = get_price_df(ticker)
     tech_data = compute_indicators(df) if not df.empty else {"error": "No price data"}
     news_data = get_news(ticker)
     fund_data = get_fundamentals(ticker)
-
     news_txt = "\n".join("- " + n["title"] + " (" + n.get("source", "") + ")" for n in news_data) or "No recent news found."
     headlines = [n["title"] for n in news_data] if news_data else ["No headlines available"]
 
     def _tech():
         return llm(TECH_SYS, "Ticker: " + ticker + "\nTechnical data:\n" + json.dumps(tech_data, indent=2))
+
     def _news():
         return llm(NEWS_SYS, "Ticker: " + ticker + "\nRecent headlines:\n" + news_txt)
+
     def _sent():
         return llm(SENT_SYS, "Ticker: " + ticker + "\nHeadlines to score:\n" + json.dumps(headlines),
-                   model=MODEL_FAST, temperature=0.3)
+                    model=MODEL_FAST, temperature=0.3)
+
     def _fund():
         return llm(FUND_SYS, "Ticker: " + ticker + "\nFundamentals:\n" + json.dumps(fund_data, indent=2))
+
+    # ── NEW: Geopolitical / Shadow Supply Chain analyst ──
+    def _geopol():
+        return llm(GEOPOL_SYS,
+                    "Ticker: " + ticker +
+                    "\nSector: " + str(fund_data.get("sector", "N/A")) +
+                    " / " + str(fund_data.get("industry", "N/A")) +
+                    "\nRecent headlines:\n" + news_txt,
+                    temperature=0.3)
 
     results = {}
     with ThreadPoolExecutor(max_workers=2) as ex:  # 2-at-a-time respects free-tier rate limits
         futures = {"technical": ex.submit(_tech), "news": ex.submit(_news),
-                   "sentiment": ex.submit(_sent), "fundamentals": ex.submit(_fund)}
+                   "sentiment": ex.submit(_sent), "fundamentals": ex.submit(_fund),
+                   "geopolitical": ex.submit(_geopol)}
         for name, fut in futures.items():
             try:
                 results[name] = fut.result() or "(no output)"
@@ -316,23 +339,20 @@ def run_analysts(ticker):
 # STAGE II: BULL vs BEAR DEBATE (n rounds + facilitator)
 # =============================================================
 def run_debate(analyst_reports, ticker):
-    reports_txt = "\n\n".join("### " + k.upper() + " REPORT ###\n" + v for k, v in analyst_reports.items())
+    reports_txt = "\n".join("### " + k.upper() + " REPORT ###\n" + v for k, v in analyst_reports.items())
     transcript, bull_arg, bear_arg = [], "", ""
-
     for r in range(1, DEBATE_ROUNDS + 1):
         bull_arg = llm(BULL_SYS,
-            "Ticker: " + ticker + "\n\nANALYST REPORTS:\n" + reports_txt +
-            "\n\nBEAR'S LAST ARGUMENT:\n" + (bear_arg or "(You open the debate.)") +
-            "\n\nRound " + str(r) + "/" + str(DEBATE_ROUNDS) + " - make the bullish case.")
+            "Ticker: " + ticker + "\nANALYST REPORTS:\n" + reports_txt +
+            "\nBEAR'S LAST ARGUMENT:\n" + (bear_arg or "(You open the debate.)") +
+            "\nRound " + str(r) + "/" + str(DEBATE_ROUNDS) + " - make the bullish case.")
         transcript.append(("Bull", r, bull_arg))
-
         bear_arg = llm(BEAR_SYS,
-            "Ticker: " + ticker + "\n\nANALYST REPORTS:\n" + reports_txt +
-            "\n\nBULL'S LAST ARGUMENT:\n" + bull_arg +
-            "\n\nRound " + str(r) + "/" + str(DEBATE_ROUNDS) + " - make the bearish rebuttal.")
+            "Ticker: " + ticker + "\nANALYST REPORTS:\n" + reports_txt +
+            "\nBULL'S LAST ARGUMENT:\n" + bull_arg +
+            "\nRound " + str(r) + "/" + str(DEBATE_ROUNDS) + " - make the bearish rebuttal.")
         transcript.append(("Bear", r, bear_arg))
-
-    full = "\n\n".join("[" + who + " - Round " + str(rd) + "]\n" + arg for who, rd, arg in transcript)
+    full = "\n".join("[" + who + " - Round " + str(rd) + "]\n" + arg for who, rd, arg in transcript)
     verdict = extract_json(llm(JUDGE_SYS, "FULL DEBATE TRANSCRIPT:\n" + full,
                                temperature=0.2, force_json=True))
     if not verdict or "winner" not in verdict:
@@ -376,14 +396,13 @@ def run_trader(state, ticker):
                             str(m.get("notes", ""))[:90] for m in mem)
     else:
         mem_txt = "No past decisions - first analysis of this ticker."
-
-    reports = "\n\n".join("### " + k.upper() + " ###\n" + v[:900] for k, v in state["analysts"].items())
-    prompt = ("Ticker: " + ticker + "\n\nANALYST REPORTS:\n" + reports +
-              "\n\nDEBATE WINNER: " + str(state["verdict"].get("winner")) +
+    reports = "\n".join("### " + k.upper() + " ###\n" + v[:900] for k, v in state["analysts"].items())
+    prompt = ("Ticker: " + ticker + "\nANALYST REPORTS:\n" + reports +
+              "\nDEBATE WINNER: " + str(state["verdict"].get("winner")) +
               " (confidence " + str(state["verdict"].get("confidence")) + ")" +
               "\nJudge rationale: " + str(state["verdict"].get("rationale", "")) +
-              "\n\nYOUR PAST DECISIONS (reflect & learn):\n" + mem_txt +
-              "\n\nMake today's decision. Return ONLY JSON.")
+              "\nYOUR PAST DECISIONS (reflect & learn):\n" + mem_txt +
+              "\nMake today's decision. Return ONLY JSON.")
     out = llm(TRADER_SYS, prompt, temperature=0.3, force_json=True)
     res = extract_json(out)
     if not res or "action" not in res:
@@ -397,18 +416,16 @@ def run_trader(state, ticker):
 def run_risk(state, ticker):
     plan = json.dumps(state["trader"], indent=2)
     ctx = "\n".join("### " + k.upper() + " ###\n" + v[:400] for k, v in state["analysts"].items())
-    base = "Ticker: " + ticker + "\n\nTRADER'S PLAN:\n" + plan + "\n\nCONTEXT:\n" + ctx
-
+    base = "Ticker: " + ticker + "\nTRADER'S PLAN:\n" + plan + "\nCONTEXT:\n" + ctx
     opinions = {}
     for label, sysp in [("Aggressive", RISK_AGGRESSIVE_SYS),
                         ("Neutral", RISK_NEUTRAL_SYS),
                         ("Conservative", RISK_SAFE_SYS)]:
-        opinions[label] = llm(sysp, base + "\n\nGive your risk assessment.")
-
-    all_op = "\n\n".join("[" + lab + "]\n" + o for lab, o in opinions.items())
+        opinions[label] = llm(sysp, base + "\nGive your risk assessment.")
+    all_op = "\n".join("[" + lab + "]\n" + o for lab, o in opinions.items())
     adj = extract_json(llm(RISK_JUDGE_SYS,
-                           "TRADER'S PLAN:\n" + plan + "\n\nRISK OPINIONS:\n" + all_op + "\n\nReturn ONLY JSON.",
-                           temperature=0.2, force_json=True))
+              "TRADER'S PLAN:\n" + plan + "\nRISK OPINIONS:\n" + all_op + "\nReturn ONLY JSON.",
+              temperature=0.2, force_json=True))
     if not adj or "adjusted_action" not in adj:
         adj = {"adjusted_action": state["trader"].get("action", "HOLD"),
                "adjusted_position_pct": state["trader"].get("position_pct", 0),
@@ -420,10 +437,10 @@ def run_risk(state, ticker):
 # =============================================================
 def run_manager(state):
     prompt = ("TRADER PLAN:\n" + json.dumps(state["trader"], indent=2) +
-              "\n\nRISK-ADJUSTED PLAN:\n" + json.dumps(state["risk_adjusted"], indent=2) +
-              "\n\nDEBATE WINNER: " + str(state["verdict"].get("winner")) +
+              "\nRISK-ADJUSTED PLAN:\n" + json.dumps(state["risk_adjusted"], indent=2) +
+              "\nDEBATE WINNER: " + str(state["verdict"].get("winner")) +
               " (confidence " + str(state["verdict"].get("confidence")) + ")" +
-              "\n\nMake the final call. Return ONLY JSON.")
+              "\nMake the final call. Return ONLY JSON.")
     out = llm(MANAGER_SYS, prompt, temperature=0.2, force_json=True)
     res = extract_json(out)
     if not res or "final_action" not in res:
@@ -442,30 +459,29 @@ def run_pipeline(ticker):
         "[dim]" + datetime.now().strftime("%Y-%m-%d %H:%M") +
         " | deep: " + MODEL_DEEP + " | fast: " + MODEL_FAST + "[/dim]",
         box=box.DOUBLE, border_style="magenta"))
-
     state = {"ticker": ticker}
     t0 = time.time()
 
-    with console.status("[cyan]I. Analyst Team (4 agents)...[/cyan]"):
+    with console.status("[cyan]I. Analyst Team (5 agents)...[/cyan]"):
         state["analysts"] = run_analysts(ticker)
-    for k, v in state["analysts"].items():
-        console.print("  [green]ok[/green] analyst:" + k + " (" + str(len(v)) + " chars)")
+        for k, v in state["analysts"].items():
+            console.print("  [green]ok[/green] analyst:" + k + " (" + str(len(v)) + " chars)")
 
     with console.status("[cyan]II. Bull vs Bear debate...[/cyan]"):
         state["transcript"], state["verdict"] = run_debate(state["analysts"], ticker)
-    console.print("  [green]ok[/green] debate winner: [bold]" + str(state["verdict"].get("winner")) +
-                  "[/bold] (confidence " + str(state["verdict"].get("confidence")) + ")")
+        console.print("  [green]ok[/green] debate winner: [bold]" + str(state["verdict"].get("winner")) +
+                      "[/bold] (confidence " + str(state["verdict"].get("confidence")) + ")")
 
     with console.status("[cyan]III. Trader deciding...[/cyan]"):
         state["trader"] = run_trader(state, ticker)
-    console.print("  [green]ok[/green] trader: [bold]" + str(state["trader"].get("action")) +
-                  "[/bold] @ " + str(state["trader"].get("position_pct")) + "%")
+        console.print("  [green]ok[/green] trader: [bold]" + str(state["trader"].get("action")) +
+                      "[/bold] @ " + str(state["trader"].get("position_pct")) + "%")
 
     with console.status("[cyan]IV. Risk team deliberating...[/cyan]"):
         state["risk_opinions"], state["risk_adjusted"] = run_risk(state, ticker)
-    console.print("  [green]ok[/green] risk-adjusted: [bold]" + str(state["risk_adjusted"].get("adjusted_action")) +
-                  "[/bold] @ " + str(state["risk_adjusted"].get("adjusted_position_pct")) +
-                  "% (risk " + str(state["risk_adjusted"].get("risk_score")) + "/10)")
+        console.print("  [green]ok[/green] risk-adjusted: [bold]" + str(state["risk_adjusted"].get("adjusted_action")) +
+                      "[/bold] @ " + str(state["risk_adjusted"].get("adjusted_position_pct")) +
+                      "% (risk " + str(state["risk_adjusted"].get("risk_score")) + "/10)")
 
     with console.status("[cyan]V. Fund manager approving...[/cyan]"):
         state["final"] = run_manager(state)
@@ -497,7 +513,6 @@ def run_pipeline(ticker):
         "[italic]" + str(state["final"].get("notes", ""))[:300] + "[/italic]\n"
         "[dim]completed in " + str(elapsed) + "s[/dim]",
         title="Fund Manager Verdict - " + ticker, box=box.DOUBLE, border_style=color))
-
     save_memory(ticker, state["final"])
     return state
 
@@ -506,32 +521,32 @@ def run_pipeline(ticker):
 # =============================================================
 BASKETS = {
     "JIM SIMONS (RenTech)": {"NVDA": 1.0, "PLTR": 1.0, "UTHR": 1.0, "META": 1.0, "AAPL": 1.0,
-                             "VRSN": 1.0, "EXEL": 1.0, "KGC": 1.0, "SPOT": 1.0, "NFLX": 1.0,
-                             "HOOD": 1.0, "GOOGL": 1.0},
+                              "VRSN": 1.0, "EXEL": 1.0, "KGC": 1.0, "SPOT": 1.0, "NFLX": 1.0,
+                              "HOOD": 1.0, "GOOGL": 1.0},
     "PELOSI TRACKER": {"NVDA": 1.0, "MSFT": 1.0, "AAPL": 1.0, "GOOGL": 1.0, "AMZN": 1.0,
-                       "PANW": 1.0, "CRM": 1.0, "TEM": 1.0},
+                        "PANW": 1.0, "CRM": 1.0, "TEM": 1.0},
     "BURRY TRACKER": {"AMZN": 1.0, "VIST": 1.0, "VST": 1.0, "AEP": 1.0, "DTE": 1.0},
     "BUFFETT TRACKER": {"AAPL": 1.0, "BAC": 1.0, "CVX": 1.0, "OXY": 1.0, "KO": 1.0,
-                        "AXP": 1.0, "MMM": 1.0},
+                         "AXP": 1.0, "MMM": 1.0},
     "ACKMAN TRACKER": {"GOOGL": 1.0, "META": 1.0, "CMG": 1.0, "NFLX": 1.0, "QSR": 1.0,
-                       "HLT": 1.0, "UBER": 1.0},
+                        "HLT": 1.0, "UBER": 1.0},
     "DRUCKENMILLER TRACKER": {"NVDA": 1.0, "MSFT": 1.0, "LLY": 1.0, "UNH": 1.0, "VRT": 1.0,
-                              "GE": 1.0, "VRTX": 1.0},
+                               "GE": 1.0, "VRTX": 1.0},
     "CITADEL TRACKER": {"SPY": 1.0, "QQQ": 1.0, "IWM": 1.0, "AAPL": 1.0, "MSFT": 1.0},
     "INVERSE CRAMER (Bear ETFs)": {"SQQQ": 1.0, "SH": 1.0, "SPXU": 1.0},
     "AI WORLD WAR III": {"LMT": 1.0, "RTX": 1.0, "NOC": 1.0, "PLTR": 1.0, "NVDA": 1.0,
-                         "GD": 1.0, "SMH": 1.0},
+                          "GD": 1.0, "SMH": 1.0},
     "GENOME (Biotech Innovation)": {"AMGN": 2.0, "GILD": 2.0, "VRTX": 2.0, "REGN": 2.0,
-                                    "MRNA": 1.5, "BNTX": 1.5, "ALNY": 1.5, "IONS": 1.5,
-                                    "CRSP": 1.0, "NTLA": 1.0, "BEAM": 1.0, "EDIT": 1.0},
+                                     "MRNA": 1.5, "BNTX": 1.5, "ALNY": 1.5, "IONS": 1.5,
+                                     "CRSP": 1.0, "NTLA": 1.0, "BEAM": 1.0, "EDIT": 1.0},
     "TERRA (Global Commodities)": {"XOM": 2.0, "CVX": 2.0, "OXY": 1.5, "FCX": 1.5, "NEM": 1.5,
-                                   "GLD": 1.5, "MOS": 1.0, "CF": 1.0, "CORN": 1.0, "PHO": 1.5,
-                                   "AWK": 1.0},
+                                    "GLD": 1.5, "MOS": 1.0, "CF": 1.0, "CORN": 1.0, "PHO": 1.5,
+                                    "AWK": 1.0},
     "NEXUS (AI Tech Infrastructure)": {"NVDA": 3.0, "AMD": 2.0, "AVGO": 2.0, "TSM": 2.0,
-                                       "MSFT": 2.0, "GOOGL": 2.0, "AMZN": 2.0, "META": 1.5,
-                                       "PLTR": 1.5, "NOW": 1.0, "SNOW": 1.0, "VRT": 1.0},
+                                        "MSFT": 2.0, "GOOGL": 2.0, "AMZN": 2.0, "META": 1.5,
+                                        "PLTR": 1.5, "NOW": 1.0, "SNOW": 1.0, "VRT": 1.0},
     "WATER (AI Cooling + Scarcity)": {"PHO": 1.0, "FIW": 1.0, "AWK": 1.0, "XYL": 1.0,
-                                      "ECL": 1.0, "VRT": 1.0},
+                                       "ECL": 1.0, "VRT": 1.0},
     "FLUID & MEMBRANE BOTTLENECKS": {"FLS": 2.0, "ROP": 2.0, "DD": 1.5, "XYL": 1.5, "VRT": 1.5},
     "AGRO-CHEM MONOPOLIES (War Squeeze)": {"NTR": 2.5, "MOS": 2.0, "CF": 2.0, "YARIY": 1.5, "FMC": 1.0},
     "CROP YIELD SHORTAGE (Food Inflation)": {"DBA": 3.0, "WEAT": 2.0, "CORN": 2.0},
@@ -540,13 +555,13 @@ BASKETS = {
     "GOLD MINERS (Traditional Supply)": {"NEM": 2.0, "GOLD": 2.0, "AEM": 2.0, "GDX": 1.5, "GDXJ": 1.0},
     "GOLD ROYALTY (Pick & Shovel)": {"FNV": 2.5, "WPM": 2.5, "RGLD": 2.0, "OR": 1.5},
     "E-WASTE & URBAN MINING": {"UMICY": 2.5, "NDA.DE": 2.5, "BOL.ST": 2.0, "GLNCY": 1.5,
-                               "5711.T": 2.0, "5713.T": 1.5, "5714.T": 1.5, "5857.T": 1.0,
-                               "SMSMY": 1.5, "NUE": 1.0, "CLH": 1.0, "JMAT.L": 1.5,
-                               "TOM.OL": 1.0, "ANDR.VI": 1.0, "AREC": 0.5},
+                                "5711.T": 2.0, "5713.T": 1.5, "5714.T": 1.5, "5857.T": 1.0,
+                                "SMSMY": 1.5, "NUE": 1.0, "CLH": 1.0, "JMAT.L": 1.5,
+                                "TOM.OL": 1.0, "ANDR.VI": 1.0, "AREC": 0.5},
     "GOLD BULLION & ETFs": {"GLD": 3.0, "IAU": 2.0, "PHYS": 1.5, "RING": 1.0},
     "MINING CAPEX (Equipment)": {"CAT": 2.5, "SDVKY": 2.0, "EPI-B.ST": 1.5, "FLIDY": 1.0},
     "EU CANNABIS INFRASTRUCTURE": {"MTRS.ST": 2.5, "TT": 1.5, "LIGHT.AS": 2.0, "SRT.DE": 2.0,
-                                   "LIN": 1.5, "AI.PA": 1.5, "SAP.DE": 1.5, "ZBRA": 1.0},
+                                    "LIN": 1.5, "AI.PA": 1.5, "SAP.DE": 1.5, "ZBRA": 1.0},
     "DENTAL DISRUPTION (Watch to Short)": {"NVST": 2.0, "XRAY": 2.0, "HSIC": 1.5, "IDXX": 1.0},
     "DRONES & EDGE AI (New Primes)": {"AVAV": 2.5, "KTOS": 2.0, "RCAT": 1.0},
     "EDGE AI & SENSORS (Brains & Eyes)": {"AMBA": 2.0, "TDY": 2.0, "MRCY": 1.5},
