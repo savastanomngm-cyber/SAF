@@ -1,0 +1,61 @@
+{
+  "kind": "supply_chain",
+  "name": "synthetic diamonds for semiconductor applications",
+  "saved_at": "2026-08-24T03:49:24.644510",
+  "data": {
+    "trend": "synthetic diamonds for semiconductor applications",
+    "supply_chain": [
+      "Raw Materials (Carbon Source: Methane, CO2)",
+      "Diamond Synthesis (CVD/HPHT Equipment & Processes)",
+      "Wafer Production (Diamond Wafer Slicing & Polishing)",
+      "Semiconductor Fabrication (Dopant Integration & Device Manufacturing)",
+      "End Applications (High-Power Electronics, RF Devices, Quantum Computing)"
+    ],
+    "bottlenecks": [
+      {
+        "name": "Diamond Synthesis Equipment (CVD/HPHT Reactors)",
+        "why_bottleneck": "High capital expenditure, proprietary technology, and specialized manufacturing expertise are required to produce the large-scale, high-quality reactors needed for industrial diamond synthesis. Scaling production requires significant lead times and specialized engineering talent.",
+        "tickers": [
+          "APPLIED MATERIALS (AMAT)",
+          "LAM RESEARCH (LRCX)"
+        ],
+        "market_concentration": "high",
+        "substitutability": "limited"
+      },
+      {
+        "name": "High-Purity Carbon Source & Precursors",
+        "why_bottleneck": "The semiconductor industry demands extremely high purity for all input materials. Sourcing and producing carbon precursors (like methane or CO2) with the required purity levels for diamond growth, free from contaminants that would degrade semiconductor performance, is a significant challenge and requires specialized purification and handling.",
+        "tickers": [
+          "LINDE PLC (LIN)",
+          "AIR PRODUCTS AND CHEMICALS (APD)"
+        ],
+        "market_concentration": "medium",
+        "substitutability": "limited"
+      },
+      {
+        "name": "Diamond Wafer Slicing & Polishing Equipment",
+        "why_bottleneck": "Achieving the ultra-precise tolerances and surface finishes required for semiconductor wafers from synthetic diamonds is technologically demanding. Specialized, high-precision cutting, grinding, and polishing equipment, often proprietary or requiring significant customization, is essential. The development and manufacturing of this equipment represent a significant barrier to entry.",
+        "tickers": [
+          "KLA CORPORATION (KLAC)",
+          "ASML HOLDING (ASML)"
+        ],
+        "market_concentration": "high",
+        "substitutability": "none"
+      }
+    ],
+    "top_pick": "AMAT",
+    "thesis_summary": "The trend towards synthetic diamonds in semiconductors hinges on the physical ability to produce high-quality diamond wafers at scale. The primary bottleneck lies in the specialized, high-capex equipment required for both the diamond synthesis (CVD/HPHT reactors) and the subsequent wafer processing (slicing/polishing). Applied Materials (AMAT) is a leader in supplying critical process equipment for semiconductor fabrication, including advanced deposition and etching technologies that are highly relevant to CVD diamond growth and wafer conditioning. Their deep integration into the semiconductor manufacturing ecosystem and their ability to scale complex equipment production positions them to capture significant value as diamond-based semiconductors move from niche to mainstream.",
+    "all_tickers": [
+      "AIR PRODUCTS AND CHEMICALS (APD)",
+      "AMAT",
+      "APPLIED MATERIALS (AMAT)",
+      "ASML HOLDING (ASML)",
+      "KLA CORPORATION (KLAC)",
+      "LAM RESEARCH (LRCX)",
+      "LINDE PLC (LIN)"
+    ],
+    "provenance": {
+      "map": "EST (AI-generated thesis, unvalidated)"
+    }
+  }
+}

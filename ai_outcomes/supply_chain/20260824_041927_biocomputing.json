@@ -1,0 +1,62 @@
+{
+  "kind": "supply_chain",
+  "name": "biocomputing",
+  "saved_at": "2026-08-24T04:19:27.438225",
+  "data": {
+    "trend": "biocomputing",
+    "supply_chain": [
+      "raw biochemicals (dNTPs, phosphoramidite monomers, high-fidelity polymerases/ligases, cell-culture media)",
+      "critical consumables (synthesis columns, microfluidic cartridges, multi-electrode arrays, sterile labware)",
+      "core instruments (DNA synthesizers, NGS sequencers, electrophysiology amplifiers, automated liquid handlers)",
+      "capacity layer (gene-synthesis foundries, sequencing-as-a-service, CDMO scale-up facilities)",
+      "end applications (DNA data storage, molecular logic circuits, organoid-intelligence wetware compute)"
+    ],
+    "bottlenecks": [
+      {
+        "name": "Oligonucleotide & gene synthesis capacity (the 'write' layer)",
+        "why_bottleneck": "Every biocomputing architecture \u2014 DNA storage, molecular circuits, synthetic biology logic \u2014 requires physically writing custom DNA strands at scale. Writing DNA currently costs orders of magnitude more than reading it, making synthesis THE cost choke point. Twist's silicon-platform foundry is the only high-throughput, low-cost-per-base approach at commercial scale; legacy column-based synthesis caps out around 200-mers with poor economics. New capacity requires proprietary semiconductor-style fabrication processes that take years and heavy capex to replicate.",
+        "tickers": [
+          "TWST",
+          "DAN"
+        ],
+        "market_concentration": "high",
+        "substitutability": "limited"
+      },
+      {
+        "name": "Sequencing & readout (the 'read' layer)",
+        "why_bottleneck": "Any computation performed in DNA must be decoded by massively parallel sequencing. Illumina controls roughly 70-80% of the short-read installed base through razor-and-blade lock-in (instruments + proprietary flow cells/consumables); Oxford Nanopore is the only credible long-read alternative at production scale. There is no third technology anywhere near industrial maturity, so all biocomputing readout funnels through this duopoly.",
+        "tickers": [
+          "ILMN",
+          "ONTTF"
+        ],
+        "market_concentration": "high",
+        "substitutability": "limited"
+      },
+      {
+        "name": "Critical enzymes & synthesis reagents (the 'ink')",
+        "why_bottleneck": "High-fidelity polymerases, ligases, dNTPs, and phosphoramidite monomers are the chemical feedstock for all DNA write/read operations. The enzyme market is an effective oligopoly \u2014 New England Biolabs and Promega are private, leaving Thermo Fisher and Merck KGaA as the dominant public players. Phosphoramidites are close to a duopoly (Agilent, Merck KGaA). These are hard-to-qualify, contamination-sensitive biologics: a single batch failure halts entire synthesis pipelines, and customers face long re-validation cycles to switch suppliers.",
+        "tickers": [
+          "TMO",
+          "MRGKY",
+          "A"
+        ],
+        "market_concentration": "high",
+        "substitutability": "limited"
+      }
+    ],
+    "top_pick": "TWST",
+    "thesis_summary": "Biocomputing cannot scale past the lab unless the cost of WRITING DNA collapses \u2014 reading is already cheap and commoditizing, but synthesis remains the physical bottleneck every architecture (storage, molecular logic, wetware) shares. Twist Bioscience is the pure-play monopoly proxy on silicon-based oligo synthesis: its fab-like platform is the only route to order-of-magnitude cost-per-base reduction, competitors need years of capex to match it, and demand from DNA storage pilots plus synthetic biology gives it pricing power independent of any single application winning. Own the ink factory, not the computer.",
+    "all_tickers": [
+      "A",
+      "DAN",
+      "ILMN",
+      "MRGKY",
+      "ONTTF",
+      "TMO",
+      "TWST"
+    ],
+    "provenance": {
+      "map": "EST (AI-generated thesis, unvalidated)"
+    }
+  }
+}

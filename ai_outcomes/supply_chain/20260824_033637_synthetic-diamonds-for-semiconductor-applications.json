@@ -1,0 +1,56 @@
+{
+  "kind": "supply_chain",
+  "name": "Synthetic Diamonds for Semiconductor Applications",
+  "saved_at": "2026-08-24T03:36:37.733794",
+  "data": {
+    "trend": "Synthetic Diamonds for Semiconductor Applications",
+    "supply_chain": [
+      "Raw Materials (Carbon Source - e.g., Methane, Graphite)",
+      "Diamond Synthesis (CVD/HPHT equipment and processes)",
+      "Diamond Wafer Production (Substrate preparation, growth, dicing)",
+      "Semiconductor Fabrication (Doping, lithography, etching on diamond wafers)",
+      "Semiconductor Packaging",
+      "End-Use Applications (High-power electronics, RF devices, quantum computing)"
+    ],
+    "bottlenecks": [
+      {
+        "name": "High-Pressure High-Temperature (HPHT) Synthesis Equipment",
+        "why_bottleneck": "The specialized, high-capital expenditure equipment required for HPHT synthesis of high-quality diamond crystals suitable for semiconductor substrates is produced by a very limited number of manufacturers. Scaling production requires significant lead times and engineering expertise.",
+        "tickers": [
+          "PLCM"
+        ],
+        "market_concentration": "high",
+        "substitutability": "none"
+      },
+      {
+        "name": "Chemical Vapor Deposition (CVD) Diamond Growth Systems",
+        "why_bottleneck": "Similar to HPHT, advanced CVD reactors capable of growing large, high-purity diamond wafers with precise control over defects are highly specialized and dominated by a few key players. The technology is complex and requires significant R&D investment.",
+        "tickers": [
+          "PLCM"
+        ],
+        "market_concentration": "high",
+        "substitutability": "none"
+      },
+      {
+        "name": "Diamond Wafer Processing and Polishing",
+        "why_bottleneck": "Transforming raw synthetic diamond crystals into precise, ultra-flat wafers suitable for semiconductor fabrication requires specialized cutting, grinding, and polishing equipment and consumables. The tolerances are extremely tight, and the materials are very hard, creating a bottleneck in specialized tooling and abrasive manufacturers.",
+        "tickers": [
+          "NORT",
+          "3M"
+        ],
+        "market_concentration": "medium",
+        "substitutability": "limited"
+      }
+    ],
+    "top_pick": "PLCM",
+    "thesis_summary": "The burgeoning market for synthetic diamond semiconductors hinges on the ability to produce high-quality diamond substrates at scale. The critical bottleneck lies in the specialized, high-capex synthesis equipment, primarily dominated by HPHT and CVD reactor manufacturers. The limited number of players, high barriers to entry due to technological complexity and capital requirements, and lack of viable substitutes for these specific machines make them the prime choke points. As demand for diamond-based electronics grows, companies providing this foundational manufacturing hardware will capture outsized value.",
+    "all_tickers": [
+      "3M",
+      "NORT",
+      "PLCM"
+    ],
+    "provenance": {
+      "map": "EST (AI-generated thesis, unvalidated)"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "kind": "supply_chain",
+  "name": "gold mining illegal",
+  "saved_at": "2026-08-24T03:56:31.641357",
+  "data": {
+    "trend": "gold mining illegal",
+    "supply_chain": [
+      "Illegal mining operations (artisanal and small-scale)",
+      "Mercury and cyanide (chemical inputs)",
+      "Basic excavation and processing equipment (shovels, sluices, small crushers)",
+      "Informal transportation networks (local roads, river transport)",
+      "Smuggling and illicit trade routes",
+      "Black market gold buyers and refiners",
+      "Laundering of illicit proceeds"
+    ],
+    "bottlenecks": [
+      {
+        "name": "Mercury and Cyanide Supply",
+        "why_bottleneck": "While not all illegal mining uses mercury/cyanide, it's a common and effective method for gold amalgamation and leaching. Control over the supply of these chemicals, especially in regions with weak regulation, creates a bottleneck. Their use is also increasingly scrutinized and regulated, potentially limiting supply to illicit actors.",
+        "tickers": [
+          "SQM",
+          "ALB"
+        ],
+        "market_concentration": "medium",
+        "substitutability": "limited"
+      },
+      {
+        "name": "Specialized Mining Equipment Manufacturers",
+        "why_bottleneck": "While basic tools are ubiquitous, more advanced (though still relatively low-tech) processing equipment like sluice boxes, small-scale centrifuges, and crushers used in artisanal and small-scale mining (ASM) can be concentrated in specific manufacturers or regions. Disruptions to this supply chain, even for relatively simple equipment, can impede illegal operations.",
+        "tickers": [
+          "KOM",
+          "FLS"
+        ],
+        "market_concentration": "medium",
+        "substitutability": "limited"
+      },
+      {
+        "name": "Illicit Gold Refiners and Traders",
+        "why_bottleneck": "These entities form the crucial link between raw, often impure, illicit gold and the broader market. They possess the capacity to refine the gold and integrate it into the legitimate financial system, often through complex laundering schemes. Their control over refining capacity and access to international markets represents a significant choke point.",
+        "tickers": [],
+        "market_concentration": "high",
+        "substitutability": "none"
+      }
+    ],
+    "top_pick": "SQM",
+    "thesis_summary": "Illegal gold mining relies on specific chemical inputs and processing equipment. While the end-product market is fragmented and illicit, the supply of key chemicals like mercury and cyanide, and the manufacturers of specialized ASM equipment, represent physical bottlenecks. SQM (Sociedad Qu\u00edmica y Minera de Chile) is a major producer of iodine and lithium, but also a significant producer of nitrates and chemicals that can be diverted or whose production indirectly impacts the availability and price of chemicals used in gold processing. Control over these inputs is a critical choke point. While direct tickers for illicit refiners are impossible, focusing on the upstream chemical and equipment suppliers provides exposure to the physical constraints of this trend.",
+    "all_tickers": [
+      "ALB",
+      "FLS",
+      "KOM",
+      "SQM"
+    ],
+    "provenance": {
+      "map": "EST (AI-generated thesis, unvalidated)"
+    }
+  }
+}
